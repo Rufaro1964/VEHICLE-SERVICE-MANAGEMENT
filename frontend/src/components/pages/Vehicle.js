@@ -47,10 +47,10 @@ import {
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
-import apiService from '../services/api';
-import VehicleForm from '../components/forms/VehicleForm';
-import QRCodeDialog from '../components/common/QRCodeDialog';
-import ImportDialog from '../components/common/ImportDialog';
+import apiService from '../../services/api';
+import VehicleForm from '../../components/forms/VehicleForm';
+import QRCodeDialog from '../../components/common/QRCodeDialog';
+import ImportDialog from '../../components/common/ImportDialog';
 
 const Vehicles = () => {
     const [vehicles, setVehicles] = useState([]);

@@ -1,0 +1,57 @@
+.
+├── package.json
+├── package-lock.json
+├── public
+│   ├── 404.html
+│   ├── favicon.ico
+│   ├── favicon.png
+│   ├── favicon.svg
+│   ├── fonts
+│   ├── icons
+│   ├── images
+│   │   ├── placeholder.png
+│   │   └── vehicle-placeholder.jpg
+│   ├── index.html
+│   ├── logo192.png
+│   ├── logo512.png
+│   ├── manifest.json
+│   └── robots.txt
+├── README.md
+├── src
+│   ├── App.css
+│   ├── App.js
+│   ├── App.test.js
+│   ├── components
+│   │   ├── common
+│   │   │   ├── ImportDialog.js
+│   │   │   └── QRCodeDialog.js
+│   │   ├── forms
+│   │   │   └── VehicleForm.js
+│   │   ├── layout
+│   │   │   └── MainLayout.js
+│   │   ├── pages
+│   │   │   ├── AdminDashboard.js
+│   │   │   ├── Dashboard.js
+│   │   │   ├── Login.js
+│   │   │   ├── Register.js
+│   │   │   ├── Reports.js
+│   │   │   ├── ServiceDetails.js
+│   │   │   ├── Services.js
+│   │   │   ├── Settings.js
+│   │   │   ├── VehicleDetail.js
+│   │   │   └── Vehicle.js
+│   │   └── PrivateRoute.js
+│   ├── context
+│   │   └── AuthContext.js
+│   ├── i18n
+│   │   └── config.js
+│   ├── index.css
+│   ├── index.js
+│   ├── logo.svg
+│   ├── reportWebVitals.js
+│   ├── services
+│   │   └── api.js
+│   └── setupTests.js
+└── tree.txt
+
+14 directories, 41 files

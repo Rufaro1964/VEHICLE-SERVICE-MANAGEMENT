@@ -38,7 +38,7 @@ import {
     Pie,
     Cell,
 } from 'recharts';
-import apiService from '../services/api';
+import apiService from '../../services/api';
 import { format } from 'date-fns';
 
 const Dashboard = () => {
