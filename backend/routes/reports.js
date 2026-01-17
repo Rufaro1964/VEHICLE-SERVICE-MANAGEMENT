@@ -1,14 +1,17 @@
+// routes/reports.js
 const express = require('express');
 const router = express.Router();
 const reportController = require('../controllers/reportController');
-const auth = require('../middleware/auth');
-const upload = require('../middleware/upload');
+
+// FIX: Use destructuring
+const { auth } = require('../middleware/auth');
 
 router.use(auth);
 
-router.get('/dashboard', reportController.getDashboardStats);
-router.get('/financial', reportController.getFinancialReport);
-router.get('/export/vehicles', reportController.exportVehiclesToExcel);
-router.post('/import/vehicles', upload.single('file'), reportController.importVehiclesFromExcel);
+router.get('/', reportController.getAllReports);
+router.get('/vehicles', reportController.getVehicleReports);
+router.get('/services', reportController.getServiceReports);
+router.get('/financial', reportController.getFinancialReports);
+router.get('/export/excel', reportController.exportReportsToExcel);
 
 module.exports = router;
