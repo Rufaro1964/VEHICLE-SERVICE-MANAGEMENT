@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const serviceController = require('../controllers/serviceController');
-const auth = require('../middleware/auth');
+
+// FIX: Use destructuring to get just the auth function
+const { auth } = require('../middleware/auth');  // <-- Add curly braces!
 
 router.use(auth);
 

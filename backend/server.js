@@ -8,6 +8,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Import routes
+const authRoutes = require("./routes/auth");
+const vehicleRoutes = require("./routes/vehicles");
+const serviceRoutes = require("./routes/services");
+const notificationRoutes = require("./routes/notifications");
+const reportRoutes = require("./routes/reports");
+
+// Mount routes
+app.use("/api/auth", authRoutes);
+app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/services", serviceRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/reports", reportRoutes);
 // Routes
 app.get('/', (req, res) => {
   res.json({

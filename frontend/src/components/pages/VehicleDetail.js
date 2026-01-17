@@ -57,8 +57,8 @@ import {
     Legend,
     ResponsiveContainer,
 } from 'recharts';
-import apiService from '../services/api';
-import QRCodeDialog from '../components/common/QRCodeDialog';
+import apiService from '../../services/api';
+import QRCodeDialog from '../../components/common/QRCodeDialog';
 
 const VehicleDetail = () => {
     const { id } = useParams();

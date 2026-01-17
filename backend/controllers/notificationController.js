@@ -1,28 +1,37 @@
+// controllers/notificationController.js - Updated to match original routes
 const db = require('../config/db');
 
-// @desc    Get user notifications
+// @desc    Get all notifications
 // @route   GET /api/notifications
-exports.getNotifications = async (req, res) => {
+exports.getAllNotifications = async (req, res) => {
     try {
-        const { limit = 50, unread_only = false } = req.query;
+        const [notifications] = await db.query(
+            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+            [req.user.id]
+        );
         
-        let query = `
-            SELECT n.*, v.plate_number as vehicle_plate
-            FROM notifications n
-            LEFT JOIN vehicles v ON n.vehicle_id = v.id
-            WHERE n.user_id = ?
-        `;
-        
-        const params = [req.user.id];
-        
-        if (unread_only === 'true') {
-            query += ' AND n.is_read = FALSE';
-        }
-        
-        query += ' ORDER BY n.created_at DESC LIMIT ?';
-        params.push(parseInt(limit));
-        
-        const [notifications] = await db.query(query, params);
+        res.json({
+            success: true,
+            count: notifications.length,
+            data: notifications
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+};
+
+// @desc    Get unread notifications
+// @route   GET /api/notifications/unread
+exports.getUnreadNotifications = async (req, res) => {
+    try {
+        const [notifications] = await db.query(
+            'SELECT * FROM notifications WHERE user_id = ? AND is_read = FALSE ORDER BY created_at DESC',
+            [req.user.id]
+        );
         
         res.json({
             success: true,
@@ -104,8 +113,7 @@ exports.deleteNotification = async (req, res) => {
     }
 };
 
-// @desc    Create notification
-// @route   POST /api/notifications
+// Optional: Create notification (for completeness)
 exports.createNotification = async (req, res) => {
     try {
         const { vehicle_id, type, title, message } = req.body;
@@ -116,26 +124,9 @@ exports.createNotification = async (req, res) => {
             [req.user.id, vehicle_id, type, title, message]
         );
         
-        // Send real-time notification
-        const io = req.app.get('io');
-        io.to(`user_${req.user.id}`).emit('new-notification', {
-            id: result.insertId,
-            title,
-            message,
-            type,
-            vehicle_id,
-            created_at: new Date()
-        });
-        
         res.status(201).json({
             success: true,
-            data: {
-                id: result.insertId,
-                title,
-                message,
-                type,
-                vehicle_id
-            }
+            data: { id: result.insertId }
         });
     } catch (err) {
         console.error(err);

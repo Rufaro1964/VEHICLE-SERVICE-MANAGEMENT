@@ -5,7 +5,7 @@ const AuthContext = createContext({});
 
 export const useAuth = () => useContext(AuthContext);
 
-const AuthProvider = ({ children }) => {
+export const AuthProvider = ({ children }) => {  // <-- Changed to named export
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [notifications, setNotifications] = useState([]);
@@ -19,7 +19,12 @@ const AuthProvider = ({ children }) => {
             apiService.getCurrentUser()
                 .then(response => {
                     if (response.success) {
-                        setUser(response.user);
+                        // Handle both username and name fields
+                        const userData = response.user;
+                        if (userData.username && !userData.name) {
+                            userData.name = userData.username;
+                        }
+                        setUser(userData);
                         loadNotifications();
                     } else {
                         localStorage.removeItem('token');
@@ -37,43 +42,14 @@ const AuthProvider = ({ children }) => {
             setLoading(false);
         }
 
-        // Setup Socket.IO listeners
-        apiService.onSocketEvent('new-notification', (notification) => {
-            setNotifications(prev => [notification, ...prev]);
-            setUnreadCount(prev => prev + 1);
-        });
-
-        apiService.onSocketEvent('service-due', (data) => {
-            // Show service due notification
-            const notification = {
-                id: Date.now(),
-                title: 'Service Due',
-                message: `Vehicle ${data.plateNumber} is due for service (${data.currentMileage} miles)`,
-                type: 'service_due',
-                created_at: new Date().toISOString(),
-                is_read: false
-            };
-            setNotifications(prev => [notification, ...prev]);
-            setUnreadCount(prev => prev + 1);
-        });
-
-        apiService.onSocketEvent('service-completed', (data) => {
-            const notification = {
-                id: Date.now(),
-                title: 'Service Completed',
-                message: `Service ${data.invoiceNumber} completed for vehicle ${data.vehicleId}. Total: $${data.totalCost}`,
-                type: 'system',
-                created_at: new Date().toISOString(),
-                is_read: false
-            };
-            setNotifications(prev => [notification, ...prev]);
-            setUnreadCount(prev => prev + 1);
-        });
+        // Socket.IO listeners (commented out if not needed)
+        // apiService.onSocketEvent('new-notification', (notification) => {
+        //     setNotifications(prev => [notification, ...prev]);
+        //     setUnreadCount(prev => prev + 1);
+        // });
 
         return () => {
-            apiService.offSocketEvent('new-notification');
-            apiService.offSocketEvent('service-due');
-            apiService.offSocketEvent('service-completed');
+            // apiService.offSocketEvent('new-notification');
         };
     }, []);
 
@@ -93,7 +69,12 @@ const AuthProvider = ({ children }) => {
     const login = async (email, password) => {
         const response = await apiService.login(email, password);
         if (response.success) {
-            setUser(response.user);
+            // Handle both username and name fields
+            const userData = response.user;
+            if (userData.username && !userData.name) {
+                userData.name = userData.username;
+            }
+            setUser(userData);
             await loadNotifications();
         }
         return response;
@@ -102,7 +83,12 @@ const AuthProvider = ({ children }) => {
     const register = async (userData) => {
         const response = await apiService.register(userData);
         if (response.success) {
-            setUser(response.user);
+            // Handle both username and name fields
+            const userData = response.user;
+            if (userData.username && !userData.name) {
+                userData.name = userData.username;
+            }
+            setUser(userData);
             await loadNotifications();
         }
         return response;
@@ -163,7 +149,9 @@ const AuthProvider = ({ children }) => {
         deleteNotification,
         loadNotifications,
         isAuthenticated: !!user,
-        isAdmin: user?.role === 'admin'
+        isAdmin: user?.role === 'admin',
+        isTechnician: user?.role === 'technician',
+        isUser: user?.role === 'user'
     };
 
     return (
@@ -173,4 +161,5 @@ const AuthProvider = ({ children }) => {
     );
 };
 
+// Keep default export for backward compatibility
 export default AuthProvider;

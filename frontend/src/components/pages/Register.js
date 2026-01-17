@@ -16,7 +16,7 @@ import {
     Fade,
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useSnackbar } from 'notistack';
 
 const Register = () => {
