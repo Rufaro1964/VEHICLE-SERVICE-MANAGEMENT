@@ -199,7 +199,7 @@ const Dashboard = () => {
                 <Grid item xs={12} sm={6} md={3}>
                     <StatCard
                         title="Total Cost"
-                        value={`$${stats?.recent_cost?.toFixed(2) || '0.00'}`}
+                        value={`k${stats?.recent_cost?.toFixed(2) || '0.00'}`}
                         icon={<Assessment />}
                         color="#ed6c02"
                         change={15}

@@ -286,7 +286,7 @@ const Vehicles = () => {
                                 Service Cost (30 days)
                             </Typography>
                             <Typography variant="h4">
-                                $0.00
+                                k0.00
                             </Typography>
                         </CardContent>
                     </Card>
