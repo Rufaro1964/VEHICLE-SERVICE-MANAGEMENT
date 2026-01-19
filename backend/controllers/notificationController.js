@@ -1,14 +1,15 @@
-// controllers/notificationController.js - Updated to match original routes
-const db = require('../config/db');
+// controllers/notificationController.js - UPDATED VERSION
+const prisma = require('../lib/prisma');  // CHANGED FROM: const db = require('../config/db')
 
 // @desc    Get all notifications
 // @route   GET /api/notifications
 exports.getAllNotifications = async (req, res) => {
     try {
-        const [notifications] = await db.query(
-            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
-            [req.user.id]
-        );
+        // CHANGED: Get notifications with Prisma
+        const notifications = await prisma.notifications.findMany({
+            where: { user_id: req.user.id },  // Note: might be userId or user_id
+            orderBy: { created_at: 'desc' }  // Note: might be createdAt or created_at
+        });
         
         res.json({
             success: true,
@@ -28,10 +29,14 @@ exports.getAllNotifications = async (req, res) => {
 // @route   GET /api/notifications/unread
 exports.getUnreadNotifications = async (req, res) => {
     try {
-        const [notifications] = await db.query(
-            'SELECT * FROM notifications WHERE user_id = ? AND is_read = FALSE ORDER BY created_at DESC',
-            [req.user.id]
-        );
+        // CHANGED: Get unread notifications
+        const notifications = await prisma.notifications.findMany({
+            where: { 
+                user_id: req.user.id,
+                is_read: false  // Note: might be isRead or is_read
+            },
+            orderBy: { created_at: 'desc' }
+        });
         
         res.json({
             success: true,
@@ -51,10 +56,16 @@ exports.getUnreadNotifications = async (req, res) => {
 // @route   PUT /api/notifications/:id/read
 exports.markAsRead = async (req, res) => {
     try {
-        await db.query(
-            'UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?',
-            [req.params.id, req.user.id]
-        );
+        // CHANGED: Update notification
+        await prisma.notifications.updateMany({
+            where: {
+                id: parseInt(req.params.id),
+                user_id: req.user.id
+            },
+            data: {
+                is_read: true
+            }
+        });
         
         res.json({
             success: true,
@@ -73,10 +84,16 @@ exports.markAsRead = async (req, res) => {
 // @route   PUT /api/notifications/read-all
 exports.markAllAsRead = async (req, res) => {
     try {
-        await db.query(
-            'UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE',
-            [req.user.id]
-        );
+        // CHANGED: Update all notifications
+        await prisma.notifications.updateMany({
+            where: {
+                user_id: req.user.id,
+                is_read: false
+            },
+            data: {
+                is_read: true
+            }
+        });
         
         res.json({
             success: true,
@@ -95,10 +112,13 @@ exports.markAllAsRead = async (req, res) => {
 // @route   DELETE /api/notifications/:id
 exports.deleteNotification = async (req, res) => {
     try {
-        await db.query(
-            'DELETE FROM notifications WHERE id = ? AND user_id = ?',
-            [req.params.id, req.user.id]
-        );
+        // CHANGED: Delete notification
+        await prisma.notifications.deleteMany({
+            where: {
+                id: parseInt(req.params.id),
+                user_id: req.user.id
+            }
+        });
         
         res.json({
             success: true,
@@ -118,15 +138,20 @@ exports.createNotification = async (req, res) => {
     try {
         const { vehicle_id, type, title, message } = req.body;
         
-        const [result] = await db.query(
-            `INSERT INTO notifications (user_id, vehicle_id, type, title, message) 
-             VALUES (?, ?, ?, ?, ?)`,
-            [req.user.id, vehicle_id, type, title, message]
-        );
+        // CHANGED: Create notification
+        const notification = await prisma.notifications.create({
+            data: {
+                user_id: req.user.id,
+                vehicle_id: vehicle_id,
+                type: type,
+                title: title,
+                message: message
+            }
+        });
         
         res.status(201).json({
             success: true,
-            data: { id: result.insertId }
+            data: notification
         });
     } catch (err) {
         console.error(err);

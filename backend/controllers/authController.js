@@ -1,6 +1,7 @@
+// controllers/authController.js - UPDATED VERSION
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../config/db');
+const prisma = require('../lib/prisma');  // CHANGED FROM: const db = require('../config/db')
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -9,13 +10,17 @@ exports.register = async (req, res) => {
         // Your table has 'username' column, not 'name'
         const { username, email, password, phone, role = 'user' } = req.body;
         
-        // Check if user exists
-        const existing = await db.query(
-            'SELECT id FROM users WHERE email = ? OR username = ?',
-            [email, username]
-        );
+        // CHANGED: Check if user exists
+        const existingUser = await prisma.users.findFirst({
+            where: {
+                OR: [
+                    { email: email },
+                    { username: username }
+                ]
+            }
+        });
         
-        if (existing.length > 0) {
+        if (existingUser) {
             return res.status(400).json({
                 success: false,
                 message: 'User already exists'
@@ -26,32 +31,37 @@ exports.register = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
         
-        // Create user - using username column
-        const result = await db.query(
-            'INSERT INTO users (username, email, password, phone, role) VALUES (?, ?, ?, ?, ?)',
-            [username, email, hashedPassword, phone || null, role]
-        );
+        // CHANGED: Create user
+        const newUser = await prisma.users.create({
+            data: {
+                username: username,
+                email: email,
+                password: hashedPassword,
+                phone: phone || null,
+                role: role,  // Use lowercase if that's what your database has
+                language: 'en'  // Add default language
+            }
+        });
         
         // Generate token
         const token = jwt.sign(
             { 
-                id: result.insertId, 
-                email: email, 
-                role: role 
+                id: newUser.id, 
+                email: newUser.email, 
+                role: newUser.role 
             },
             process.env.JWT_SECRET || 'your_jwt_secret_fallback',
             { expiresIn: '7d' }
         );
         
-        // Get created user
-        const [newUser] = await db.query(
-            'SELECT id, username, email, phone, role, created_at FROM users WHERE id = ?',
-            [result.insertId]
-        );
-        
-        // For frontend compatibility, also include 'name' field (same as username)
+        // CHANGED: Get created user (already have it)
         const userResponse = {
-            ...newUser,
+            id: newUser.id,
+            username: newUser.username,
+            email: newUser.email,
+            phone: newUser.phone,
+            role: newUser.role,
+            created_at: newUser.created_at,  // Note: might be createdAt or created_at
             name: newUser.username  // Add name field for frontend
         };
         
@@ -78,13 +88,12 @@ exports.login = async (req, res) => {
         console.log('Login attempt for:', req.body.email);
         const { email, password } = req.body;
         
-        // Find user by email
-        const users = await db.query(
-            'SELECT * FROM users WHERE email = ?',
-            [email]
-        );
+        // CHANGED: Find user by email
+        const user = await prisma.users.findFirst({
+            where: { email: email }
+        });
         
-        if (users.length === 0) {
+        if (!user) {
             console.log('No user found with email:', email);
             return res.status(401).json({
                 success: false,
@@ -92,7 +101,6 @@ exports.login = async (req, res) => {
             });
         }
         
-        const user = users[0];
         console.log('Found user:', user.email, 'Username:', user.username, 'Role:', user.role);
         
         // SPECIAL HANDLING FOR DEMO USERS
@@ -173,23 +181,24 @@ exports.getMe = async (req, res) => {
             });
         }
         
-        const users = await db.query(
-            'SELECT id, username, email, phone, role, created_at FROM users WHERE id = ?',
-            [req.user.id]
-        );
+        // CHANGED: Get user with Prisma
+        const user = await prisma.users.findUnique({
+            where: { id: req.user.id }
+        });
         
-        if (users.length === 0) {
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
             });
         }
         
-        const user = users[0];
+        // Remove password
+        const { password, ...userWithoutPassword } = user;
         
         // Add 'name' field for frontend compatibility
         const userResponse = {
-            ...user,
+            ...userWithoutPassword,
             name: user.username  // Frontend expects 'name' field
         };
         
@@ -217,13 +226,6 @@ exports.logout = (req, res) => {
 };
 
 // ====== PUT THESE DEBUG LINES AT THE VERY END ======
-console.log('=== authController.js LOADED ===');
-console.log('module.exports.register is a function?', typeof exports.register === 'function');
-console.log('module.exports.login is a function?', typeof exports.login === 'function');
-console.log('module.exports.getMe is a function?', typeof exports.getMe === 'function');
-console.log('module.exports.logout is a function?', typeof exports.logout === 'function');
-console.log('Type of exports.register:', typeof exports.register);
-console.log('Type of exports.login:', typeof exports.login);
-console.log('Type of exports.getMe:', typeof exports.getMe);
-console.log('Type of exports.logout:', typeof exports.logout);
+console.log('=== authController.js LOADED with Prisma ===');
+console.log('Using Prisma:', typeof prisma !== 'undefined');
 // ====== END DEBUG LINES ======

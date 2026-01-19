@@ -8,6 +8,8 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "@prisma/adapter-planetscale": "^7.2.0",
+    "@prisma/client": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -17,6 +19,7 @@
     "jsonwebtoken": "^9.0.3",
     "mysql": "^2.18.1",
     "mysql2": "^3.16.0",
+    "prisma": "^6.0.0",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
