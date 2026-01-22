@@ -6,7 +6,7 @@ const router = express.Router();
 const notificationController = require('../controllers/notificationController');
 
 // FIX: Use destructuring to get just the auth function
-const { auth } = require('../middleware/auth');  // <-- Add curly braces!
+const auth  = require('../middleware/auth');  // <-- Add curly braces!
 
 // Line 6: Apply auth middleware
 router.use(auth);

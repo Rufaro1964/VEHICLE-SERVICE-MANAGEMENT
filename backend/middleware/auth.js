@@ -1,7 +1,8 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
-const prisma = require('../lib/prisma'); // Changed from db
+const prisma = require('../lib/prisma');
 
-exports.auth = async (req, res, next) => {
+const auth = async (req, res, next) => {  // Remove "exports."
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
@@ -35,3 +36,6 @@ exports.auth = async (req, res, next) => {
     res.status(401).json({ error: 'Please authenticate.' });
   }
 };
+
+// Export the function directly
+module.exports = auth;  // Not module.exports.auth

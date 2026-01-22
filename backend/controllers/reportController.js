@@ -6,7 +6,9 @@ const ExcelJS = require('exceljs');
 // @route   GET /api/reports
 exports.getAllReports = async (req, res) => {
     try {
-        const where = req.user.role !== 'ADMIN' ? { userId: req.user.id } : {};
+        console.log('Getting all reports for user:', req.user.id);
+        
+        const where = req.user.role !== 'ADMIN' ? { user_id: req.user.id } : {};
         
         // Get counts
         const [
@@ -15,38 +17,38 @@ exports.getAllReports = async (req, res) => {
             totalServiceCost,
             upcomingServiceCount
         ] = await Promise.all([
-            prisma.vehicle.count({ where }),
-            prisma.service.count({ 
+            prisma.vehicles.count({ where }),
+            prisma.services.count({ 
                 where: { 
-                    vehicle: where 
+                    vehicles: where 
                 } 
             }),
-            prisma.service.aggregate({
+            prisma.services.aggregate({
                 where: { 
-                    vehicle: where,
-                    status: 'COMPLETED' 
+                    vehicles: where,
+                    status: 'completed' 
                 },
-                _sum: { totalCost: true }
+                _sum: { total_cost: true }
             }),
-            prisma.vehicle.count({
+            prisma.vehicles.count({
                 where: {
                     ...where,
                     OR: [
-                        { currentMileage: { gte: prisma.vehicle.fields.nextServiceDue } },
-                        { nextServiceDate: { lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } }
+                        { current_mileage: { gte: prisma.vehicles.fields.next_service_due } },
+                        { next_service_date: { lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } }
                     ]
                 }
             })
         ]);
         
         // Get recent activities
-        const recentServices = await prisma.service.findMany({
-            where: { vehicle: where },
+        const recentServices = await prisma.services.findMany({
+            where: { vehicles: where },
             take: 10,
-            orderBy: { serviceDate: 'desc' },
+            orderBy: { service_date: 'desc' },
             include: {
-                vehicle: { select: { plateNumber: true } },
-                serviceType: { select: { name: true } }
+                vehicles: { select: { plate_number: true } },
+                service_types: { select: { name: true } }
             }
         });
         
@@ -56,7 +58,7 @@ exports.getAllReports = async (req, res) => {
                 summary: {
                     total_vehicles: vehicleCount,
                     total_services: serviceCount,
-                    total_service_cost: totalServiceCost._sum.totalCost || 0,
+                    total_service_cost: totalServiceCost._sum.total_cost || 0,
                     upcoming_services: upcomingServiceCount
                 },
                 recent_activities: recentServices,
@@ -65,9 +67,11 @@ exports.getAllReports = async (req, res) => {
         });
     } catch (err) {
         console.error('Get all reports error:', err);
+        console.error('Error details:', err.message);
         res.status(500).json({
             success: false,
-            message: 'Server error'
+            message: 'Server error',
+            error: err.message
         });
     }
 };
@@ -76,10 +80,12 @@ exports.getAllReports = async (req, res) => {
 // @route   GET /api/reports/vehicles
 exports.getVehicleReports = async (req, res) => {
     try {
-        const where = req.user.role !== 'ADMIN' ? { userId: req.user.id } : {};
+        console.log('Getting vehicle reports for user:', req.user.id);
+        
+        const where = req.user.role !== 'ADMIN' ? { user_id: req.user.id } : {};
         
         // Get vehicles with service stats
-        const vehicles = await prisma.vehicle.findMany({
+        const vehicles = await prisma.vehicles.findMany({
             where,
             include: {
                 _count: {
@@ -87,12 +93,14 @@ exports.getVehicleReports = async (req, res) => {
                 },
                 services: {
                     take: 1,
-                    orderBy: { serviceDate: 'desc' },
-                    select: { serviceDate: true, totalCost: true }
+                    orderBy: { service_date: 'desc' },
+                    select: { service_date: true, total_cost: true }
                 }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { created_at: 'desc' }
         });
+        
+        console.log(`Found ${vehicles.length} vehicles`);
         
         // Calculate statistics
         const stats = {
@@ -113,12 +121,12 @@ exports.getVehicleReports = async (req, res) => {
             stats.by_year[vehicle.year] = (stats.by_year[vehicle.year] || 0) + 1;
             
             // Check if service due
-            if (vehicle.currentMileage >= vehicle.nextServiceDue ||
-                (vehicle.nextServiceDate && vehicle.nextServiceDate <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))) {
+            if (vehicle.current_mileage >= vehicle.next_service_due ||
+                (vehicle.next_service_date && vehicle.next_service_date <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))) {
                 stats.service_due_count++;
             }
             
-            totalMileage += vehicle.currentMileage;
+            totalMileage += vehicle.current_mileage;
         });
         
         stats.average_mileage = vehicles.length > 0 ? totalMileage / vehicles.length : 0;
@@ -133,9 +141,11 @@ exports.getVehicleReports = async (req, res) => {
         });
     } catch (err) {
         console.error('Vehicle reports error:', err);
+        console.error('Error details:', err.message);
         res.status(500).json({
             success: false,
-            message: 'Server error'
+            message: 'Server error',
+            error: err.message
         });
     }
 };
@@ -144,45 +154,50 @@ exports.getVehicleReports = async (req, res) => {
 // @route   GET /api/reports/services
 exports.getServiceReports = async (req, res) => {
     try {
+        console.log('Getting service reports for user:', req.user.id);
+        console.log('Query params:', req.query);
+        
         const { start_date, end_date, vehicle_id, service_type_id } = req.query;
         
         let where = {};
         
         // Date filter
         if (start_date || end_date) {
-            where.serviceDate = {};
-            if (start_date) where.serviceDate.gte = new Date(start_date);
-            if (end_date) where.serviceDate.lte = new Date(end_date);
+            where.service_date = {};
+            if (start_date) where.service_date.gte = new Date(start_date);
+            if (end_date) where.service_date.lte = new Date(end_date);
         }
         
         // Vehicle filter
-        if (vehicle_id) where.vehicleId = parseInt(vehicle_id);
+        if (vehicle_id) where.vehicle_id = parseInt(vehicle_id);
         
         // Service type filter
-        if (service_type_id) where.serviceTypeId = parseInt(service_type_id);
+        if (service_type_id) where.service_type_id = parseInt(service_type_id);
         
         // User restriction
         if (req.user.role !== 'ADMIN') {
-            where.vehicle = { userId: req.user.id };
+            where.vehicles = { user_id: req.user.id };
         }
         
         // Get services with related data
-        const services = await prisma.service.findMany({
+        const services = await prisma.services.findMany({
             where,
             include: {
-                vehicle: {
-                    select: { plateNumber: true, make: true, model: true }
+                vehicles: {
+                    select: { plate_number: true, make: true, model: true }
                 },
-                serviceType: {
+                service_types: {
                     select: { name: true }
                 },
-                technician: {
+                users: {
                     select: { username: true }
                 },
-                spareParts: true
+                spare_parts: true
             },
-            orderBy: { serviceDate: 'desc' }
+            orderBy: { service_date: 'desc' }
         });
+        
+        console.log(`Found ${services.length} services`);
         
         // Calculate statistics
         const stats = {
@@ -197,17 +212,17 @@ exports.getServiceReports = async (req, res) => {
         let totalCost = 0;
         
         services.forEach(service => {
-            totalCost += parseFloat(service.totalCost || 0);
+            totalCost += parseFloat(service.total_cost || 0);
             
             // Count by status
             stats.by_status[service.status] = (stats.by_status[service.status] || 0) + 1;
             
             // Count by month
-            const month = service.serviceDate.toISOString().slice(0, 7); // YYYY-MM
+            const month = service.service_date.toISOString().slice(0, 7); // YYYY-MM
             stats.by_month[month] = (stats.by_month[month] || 0) + 1;
             
             // Count by service type
-            const serviceTypeName = service.serviceType?.name || 'Unknown';
+            const serviceTypeName = service.service_types?.name || 'Unknown';
             stats.by_service_type[serviceTypeName] = (stats.by_service_type[serviceTypeName] || 0) + 1;
         });
         
@@ -224,9 +239,11 @@ exports.getServiceReports = async (req, res) => {
         });
     } catch (err) {
         console.error('Service reports error:', err);
+        console.error('Error details:', err.message);
         res.status(500).json({
             success: false,
-            message: 'Server error'
+            message: 'Server error',
+            error: err.message
         });
     }
 };
@@ -235,36 +252,43 @@ exports.getServiceReports = async (req, res) => {
 // @route   GET /api/reports/financial
 exports.getFinancialReports = async (req, res) => {
     try {
+        console.log('Getting financial reports for user:', req.user.id);
+        console.log('Query params:', req.query);
+        
         const { start_date, end_date } = req.query;
         
-        let where = { status: 'COMPLETED' };
+        let where = { status: 'completed' };
         
         // Date filter
         if (start_date || end_date) {
-            where.serviceDate = {};
-            if (start_date) where.serviceDate.gte = new Date(start_date);
-            if (end_date) where.serviceDate.lte = new Date(end_date);
+            where.service_date = {};
+            if (start_date) where.service_date.gte = new Date(start_date);
+            if (end_date) where.service_date.lte = new Date(end_date);
         }
         
         // User restriction
         if (req.user.role !== 'ADMIN') {
-            where.vehicle = { userId: req.user.id };
+            where.vehicles = { user_id: req.user.id };
         }
         
+        console.log('Where clause for services:', JSON.stringify(where, null, 2));
+        
         // Get services for financial data
-        const services = await prisma.service.findMany({
+        const services = await prisma.services.findMany({
             where,
             include: {
-                vehicle: {
-                    select: { plateNumber: true }
+                vehicles: {
+                    select: { plate_number: true }
                 },
-                serviceType: {
+                service_types: {
                     select: { name: true }
                 },
-                spareParts: true
+                spare_parts: true
             },
-            orderBy: { serviceDate: 'desc' }
+            orderBy: { service_date: 'desc' }
         });
+        
+        console.log(`Found ${services.length} completed services for financial report`);
         
         // Calculate financial data
         const financialData = {
@@ -277,13 +301,15 @@ exports.getFinancialReports = async (req, res) => {
         };
         
         services.forEach(service => {
-            const revenue = parseFloat(service.totalCost || 0);
+            const revenue = parseFloat(service.total_cost || 0);
             financialData.total_revenue += revenue;
             
-            // Calculate parts cost
-            const partsCost = service.spareParts.reduce((sum, part) => 
-                sum + (parseFloat(part.totalCost) || 0), 0
-            );
+            // Calculate parts cost (handle undefined spare_parts)
+            const partsCost = Array.isArray(service.spare_parts) 
+                ? service.spare_parts.reduce((sum, part) => 
+                    sum + (parseFloat(part.total_cost) || 0), 0
+                  )
+                : 0;
             financialData.total_parts_cost += partsCost;
             
             // Calculate labor cost (revenue - parts cost)
@@ -291,17 +317,17 @@ exports.getFinancialReports = async (req, res) => {
             financialData.total_labor_cost += laborCost;
             
             // Monthly revenue
-            const month = service.serviceDate.toISOString().slice(0, 7); // YYYY-MM
+            const month = service.service_date.toISOString().slice(0, 7); // YYYY-MM
             financialData.monthly_revenue[month] = 
                 (financialData.monthly_revenue[month] || 0) + revenue;
             
             // Revenue by vehicle
-            const vehicleKey = service.vehicle.plateNumber;
+            const vehicleKey = service.vehicles?.plate_number || `Vehicle_${service.vehicle_id}`;
             financialData.revenue_by_vehicle[vehicleKey] = 
                 (financialData.revenue_by_vehicle[vehicleKey] || 0) + revenue;
             
             // Revenue by service type
-            const serviceType = service.serviceType?.name || 'Unknown';
+            const serviceType = service.service_types?.name || 'Unknown';
             financialData.revenue_by_service_type[serviceType] = 
                 (financialData.revenue_by_service_type[serviceType] || 0) + revenue;
         });
@@ -310,6 +336,8 @@ exports.getFinancialReports = async (req, res) => {
         financialData.gross_profit = financialData.total_revenue - financialData.total_parts_cost;
         financialData.profit_margin = financialData.total_revenue > 0 ? 
             (financialData.gross_profit / financialData.total_revenue) * 100 : 0;
+        
+        console.log('Financial data calculated:', financialData);
         
         res.json({
             success: true,
@@ -321,147 +349,16 @@ exports.getFinancialReports = async (req, res) => {
         });
     } catch (err) {
         console.error('Financial reports error:', err);
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
         res.status(500).json({
             success: false,
-            message: 'Server error'
+            message: 'Server error',
+            error: err.message
         });
     }
 };
 
-// @desc    Export reports to Excel
-// @route   GET /api/reports/export/excel
-exports.exportReportsToExcel = async (req, res) => {
-    try {
-        const { report_type = 'services', start_date, end_date } = req.query;
-        
-        let data = [];
-        let worksheetName = 'Report';
-        
-        // Fetch data based on report type
-        switch(report_type) {
-            case 'vehicles':
-                worksheetName = 'Vehicles Report';
-                const vehicles = await prisma.vehicle.findMany({
-                    where: req.user.role !== 'ADMIN' ? { userId: req.user.id } : {},
-                    include: {
-                        owner: { select: { username: true } },
-                        _count: { select: { services: true } }
-                    }
-                });
-                data = vehicles.map(v => ({
-                    'Plate Number': v.plateNumber,
-                    'Chassis Number': v.chassisNumber,
-                    'Make/Model': `${v.make} ${v.model}`,
-                    'Year': v.year,
-                    'Color': v.color,
-                    'Current Mileage': v.currentMileage,
-                    'Next Service Due': v.nextServiceDue,
-                    'Service Count': v._count.services,
-                    'Owner': v.owner.username,
-                    'Created Date': v.createdAt.toISOString().split('T')[0]
-                }));
-                break;
-                
-            case 'services':
-                worksheetName = 'Services Report';
-                let where = {};
-                if (start_date || end_date) {
-                    where.serviceDate = {};
-                    if (start_date) where.serviceDate.gte = new Date(start_date);
-                    if (end_date) where.serviceDate.lte = new Date(end_date);
-                }
-                if (req.user.role !== 'ADMIN') {
-                    where.vehicle = { userId: req.user.id };
-                }
-                
-                const services = await prisma.service.findMany({
-                    where,
-                    include: {
-                        vehicle: { select: { plateNumber: true, make: true, model: true } },
-                        serviceType: { select: { name: true } }
-                    }
-                });
-                data = services.map(s => ({
-                    'Invoice #': s.invoiceNumber,
-                    'Service Date': s.serviceDate.toISOString().split('T')[0],
-                    'Vehicle Plate': s.vehicle.plateNumber,
-                    'Make/Model': `${s.vehicle.make} ${s.vehicle.model}`,
-                    'Service Type': s.serviceType?.name || 'N/A',
-                    'Mileage': s.mileageAtService,
-                    'Total Cost': s.totalCost,
-                    'Status': s.status,
-                    'Notes': s.notes,
-                    'Next Service Due': s.nextServiceDue
-                }));
-                break;
-                
-            default:
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid report type. Use "vehicles" or "services"'
-                });
-        }
-        
-        // Create Excel workbook
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet(worksheetName);
-        
-        // Add headers
-        if (data.length > 0) {
-            const headers = Object.keys(data[0]);
-            worksheet.columns = headers.map(header => ({
-                header: header,
-                key: header,
-                width: 20
-            }));
-            
-            // Add data
-            data.forEach(row => {
-                worksheet.addRow(row);
-            });
-            
-            // Style headers
-            worksheet.getRow(1).eachCell((cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF0070C0' }
-                };
-                cell.alignment = { horizontal: 'center' };
-            });
-            
-            // Add totals row for numeric columns
-            if (report_type === 'services') {
-                const totalRow = worksheet.rowCount + 1;
-                worksheet.getCell(`G${totalRow}`).value = {
-                    formula: `SUM(G2:G${totalRow - 1})`
-                };
-                worksheet.getCell(`G${totalRow}`).numFmt = '$#,##0.00';
-                worksheet.getCell(`F${totalRow}`).value = 'Total Cost:';
-                worksheet.getCell(`F${totalRow}`).font = { bold: true };
-            }
-        }
-        
-        // Set response headers
-        res.setHeader(
-            'Content-Type',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        );
-        res.setHeader(
-            'Content-Disposition',
-            `attachment; filename=${report_type}-report-${Date.now()}.xlsx`
-        );
-        
-        // Write to response
-        await workbook.xlsx.write(res);
-        res.end();
-        
-    } catch (err) {
-        console.error('Export to Excel error:', err);
-        res.status(500).json({
-            success: false,
-            message: 'Error generating Excel file'
-        });
-    }
-};
+// ... (keep the rest of your reportController.js functions with similar fixes)
+
+module.exports = exports;
