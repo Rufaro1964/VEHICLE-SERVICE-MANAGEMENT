@@ -26,6 +26,7 @@ import {
     ListItem,
     ListItemText,
     ListItemSecondaryAction,
+    ListItemButton, 
     Chip,
 } from '@mui/material';
 import {
@@ -47,7 +48,7 @@ import {
     VisibilityOff,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 const SettingsPage = () => {
     const { user } = useAuth();

@@ -12,9 +12,10 @@ import {
     Checkbox,
     Grid,
     Fade,
+    Divider  // ADD THIS IMPORT
 } from '@mui/material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useSnackbar } from 'notistack';
 
 const Login = () => {

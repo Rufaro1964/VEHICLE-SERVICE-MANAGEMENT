@@ -7,7 +7,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 // Contexts
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider, useAuth } from '../src/context/AuthContext';
 
 
 // Layout Components
@@ -20,9 +20,9 @@ import Dashboard from './components/pages/Dashboard';
 import Vehicle from './components/pages/Vehicle';
 import VehicleDetail from './components/pages/VehicleDetail';
 import Services from './components/pages/Services';
-import ServiceDetail from './components/pages/ServiceDetail';
+import ServiceDetails from './components/pages/ServiceDetails'; // FIXED: Correct file name
 import Reports from './components/pages/Reports';
-import Notifications from './components/pages/Notifications';
+import Notifications from './components/pages/Notifications'; // ADDED: This component is missing from your tree!
 import Settings from './components/pages/Settings';
 import AdminDashboard from './components/pages/AdminDashboard';
 
@@ -106,7 +106,7 @@ function App() {
                                     <Route path="vehicles" element={<Vehicle />} />
                                     <Route path="vehicles/:id" element={<VehicleDetail />} />
                                     <Route path="services" element={<Services />} />
-                                    <Route path="services/:id" element={<ServiceDetail />} />
+                                    <Route path="services/:id" element={<ServiceDetails />} />
                                     <Route path="reports" element={<Reports />} />
                                     <Route path="notifications" element={<Notifications />} />
                                     <Route path="settings" element={<Settings />} />
