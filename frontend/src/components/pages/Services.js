@@ -218,10 +218,10 @@ const Services = () => {
     // Helper function to safely format currency
     const formatCurrency = (value) => {
         if (value === null || value === undefined || value === '') {
-            return '$0.00';
+            return 'K0.00';
         }
         const num = parseFloat(value);
-        return isNaN(num) ? '$0.00' : `$${num.toFixed(2)}`;
+        return isNaN(num) ? 'K0.00' : `K${num.toFixed(2)}`;
     };
 
     const calculateStats = () => {
