@@ -1,7 +1,8 @@
 import axios from 'axios';
 import io from 'socket.io-client';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// FIXED: Changed from 5000 to 5001
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 class APIService {
     constructor() {
@@ -26,7 +27,10 @@ class APIService {
         
         // Response interceptor for error handling
         this.axios.interceptors.response.use(
-            response => response,
+            response => {
+                // Return data directly for convenience
+                return response.data;
+            },
             error => {
                 if (error.response?.status === 401) {
                     // Token expired or invalid
@@ -38,56 +42,97 @@ class APIService {
             }
         );
         
-        // Initialize Socket.IO
-        this.socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000', {
-            transports: ['websocket'],
-            withCredentials: true
-        });
-        
-        // Socket event listeners
-        this.socket.on('connect', () => {
-            console.log('🔌 Socket.IO connected');
-            const user = this.getCurrentUser();
-            if (user) {
-                this.socket.emit('join', user.id);
-            }
-        });
-        
-        this.socket.on('disconnect', () => {
-            console.log('🔌 Socket.IO disconnected');
-        });
+        // FIXED: Changed from 5000 to 5001
+        // Initialize Socket.IO (optional - comment out if not using real-time)
+        try {
+            this.socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001', {
+                transports: ['websocket', 'polling'],
+                withCredentials: true
+            });
+            
+            // Socket event listeners
+            this.socket.on('connect', () => {
+                console.log('🔌 Socket.IO connected');
+                const user = this.getStoredUser();
+                if (user) {
+                    this.socket.emit('join', user.id);
+                }
+            });
+            
+            this.socket.on('disconnect', () => {
+                console.log('🔌 Socket.IO disconnected');
+            });
+        } catch (error) {
+            console.warn('Socket.IO initialization failed:', error);
+            this.socket = null;
+        }
     }
 
     // ============ AUTH METHODS ============
     async register(userData) {
-        const response = await this.axios.post('/auth/register', userData);
-        if (response.data.token) {
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-            this.socket.emit('join', response.data.user.id);
+        try {
+            const response = await this.axios.post('/auth/register', userData);
+            
+            // Handle different response formats
+            if (response.token || response.data?.token) {
+                const token = response.token || response.data.token;
+                const user = response.user || response.data.user;
+                
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                if (this.socket && user.id) {
+                    this.socket.emit('join', user.id);
+                }
+            }
+            
+            return response;
+        } catch (error) {
+            console.error('Register error:', error);
+            throw error;
         }
-        return response.data;
     }
 
     async login(email, password) {
-        const response = await this.axios.post('/auth/login', { email, password });
-        if (response.data.token) {
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-            this.socket.emit('join', response.data.user.id);
+        try {
+            const response = await this.axios.post('/auth/login', { email, password });
+            
+            // Handle different response formats
+            if (response.token || response.data?.token) {
+                const token = response.token || response.data.token;
+                const user = response.user || response.data.user;
+                
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                if (this.socket && user.id) {
+                    this.socket.emit('join', user.id);
+                }
+            }
+            
+            return response;
+        } catch (error) {
+            console.error('Login error:', error);
+            throw error;
         }
-        return response.data;
     }
 
     async getCurrentUser() {
-        const response = await this.axios.get('/auth/me');
-        return response.data;
+        try {
+            const response = await this.axios.get('/auth/me');
+            return response;
+        } catch (error) {
+            console.error('Get current user error:', error);
+            throw error;
+        }
     }
 
     logout() {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        this.socket.disconnect();
+        if (this.socket) {
+            this.socket.disconnect();
+        }
         window.location.href = '/login';
     }
 
@@ -107,138 +152,114 @@ class APIService {
 
     // ============ VEHICLE METHODS ============
     async getVehicles(params = {}) {
-        const response = await this.axios.get('/vehicles', { params });
-        return response.data;
+        return this.axios.get('/vehicles', { params });
     }
 
     async getVehicle(id) {
-        const response = await this.axios.get(`/vehicles/${id}`);
-        return response.data;
+        return this.axios.get(`/vehicles/${id}`);
     }
 
     async createVehicle(vehicleData) {
-        const response = await this.axios.post('/vehicles', vehicleData);
-        return response.data;
+        return this.axios.post('/vehicles', vehicleData);
     }
 
     async updateVehicle(id, vehicleData) {
-        const response = await this.axios.put(`/vehicles/${id}`, vehicleData);
-        return response.data;
+        return this.axios.put(`/vehicles/${id}`, vehicleData);
     }
 
     async deleteVehicle(id) {
-        const response = await this.axios.delete(`/vehicles/${id}`);
-        return response.data;
+        return this.axios.delete(`/vehicles/${id}`);
     }
 
     async getDueForService() {
-        const response = await this.axios.get('/vehicles/due/service');
-        return response.data;
+        return this.axios.get('/vehicles/due/service');
     }
 
     async getVehicleQR(id) {
-        const response = await this.axios.get(`/vehicles/${id}/qr`);
-        return response.data;
+        return this.axios.get(`/vehicles/${id}/qr`);
     }
 
     // ============ SERVICE METHODS ============
     async getServices(params = {}) {
-        const response = await this.axios.get('/services', { params });
-        return response.data;
+        return this.axios.get('/services', { params });
     }
 
     async getService(id) {
-        const response = await this.axios.get(`/services/${id}`);
-        return response.data;
+        return this.axios.get(`/services/${id}`);
     }
 
     async createService(serviceData) {
-        const response = await this.axios.post('/services', serviceData);
-        return response.data;
+        return this.axios.post('/services', serviceData);
     }
 
     async updateService(id, serviceData) {
-        const response = await this.axios.put(`/services/${id}`, serviceData);
-        return response.data;
+        return this.axios.put(`/services/${id}`, serviceData);
     }
 
     async deleteService(id) {
-        const response = await this.axios.delete(`/services/${id}`);
-        return response.data;
+        return this.axios.delete(`/services/${id}`);
     }
 
     async getServiceTypes() {
-        const response = await this.axios.get('/services/types');
-        return response.data;
+        return this.axios.get('/services/types');
     }
 
     // ============ REPORT METHODS ============
     async getMonthlyReport(year, month) {
-        const response = await this.axios.get(`/services/report/${year}/${month}`);
-        return response.data;
+        return this.axios.get(`/services/report/${year}/${month}`);
     }
 
     async getDashboardStats() {
-        const response = await this.axios.get('/reports/dashboard');
-        return response.data;
+        return this.axios.get('/reports/dashboard');
     }
 
     async getFinancialReport(year = new Date().getFullYear()) {
-        const response = await this.axios.get(`/reports/financial?year=${year}`);
-        return response.data;
+        return this.axios.get(`/reports/financial?year=${year}`);
     }
 
     async exportServicesToExcel(params = {}) {
-        const response = await this.axios.get('/services/export/excel', {
+        return this.axios.get('/services/export/excel', {
             params,
             responseType: 'blob'
         });
-        return response.data;
     }
 
     async exportVehiclesToExcel() {
-        const response = await this.axios.get('/reports/export/vehicles', {
+        return this.axios.get('/reports/export/vehicles', {
             responseType: 'blob'
         });
-        return response.data;
     }
 
     async importVehiclesFromExcel(file) {
         const formData = new FormData();
         formData.append('file', file);
         
-        const response = await this.axios.post('/reports/import/vehicles', formData, {
+        return this.axios.post('/reports/import/vehicles', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
         });
-        return response.data;
     }
 
     // ============ NOTIFICATION METHODS ============
     async getNotifications(params = {}) {
-        const response = await this.axios.get('/notifications', { params });
-        return response.data;
+        return this.axios.get('/notifications', { params });
     }
 
     async markNotificationAsRead(id) {
-        const response = await this.axios.put(`/notifications/${id}/read`);
-        return response.data;
+        return this.axios.put(`/notifications/${id}/read`);
     }
 
     async markAllNotificationsAsRead() {
-        const response = await this.axios.put('/notifications/read-all');
-        return response.data;
+        return this.axios.put('/notifications/read-all');
     }
 
     async deleteNotification(id) {
-        const response = await this.axios.delete(`/notifications/${id}`);
-        return response.data;
+        return this.axios.delete(`/notifications/${id}`);
     }
 
     async createNotification(notificationData) {
-        const response = await this.axios.post('/notifications', notificationData);
-        return response.data;
+        return this.axios.post('/notifications', notificationData);
     }
 
     // ============ FILE UPLOAD/DOWNLOAD ============
@@ -255,15 +276,25 @@ class APIService {
 
     // ============ SOCKET.IO METHODS ============
     onSocketEvent(event, callback) {
-        this.socket.on(event, callback);
+        if (this.socket) {
+            this.socket.on(event, callback);
+        } else {
+            console.warn('Socket.IO not initialized');
+        }
     }
 
     offSocketEvent(event, callback) {
-        this.socket.off(event, callback);
+        if (this.socket) {
+            this.socket.off(event, callback);
+        }
     }
 
     emitSocketEvent(event, data) {
-        this.socket.emit(event, data);
+        if (this.socket) {
+            this.socket.emit(event, data);
+        } else {
+            console.warn('Socket.IO not initialized');
+        }
     }
 }
 
