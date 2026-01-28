@@ -2,7 +2,6 @@
 const prisma = require('../lib/prisma');
 
 // @desc    Get all services
-// @desc    Get all services
 // @route   GET /api/services
 exports.getAllServices = async (req, res) => {
   try {
@@ -38,11 +37,11 @@ exports.getAllServices = async (req, res) => {
     
     // Map database enum values to frontend-friendly values
     const statusMap = {
-      'scheduled': 'pending',     // Map 'scheduled' to 'pending' for frontend
+      'scheduled': 'pending',
       'in_progress': 'in_progress',
       'completed': 'completed',
       'cancelled': 'cancelled',
-      'delayed': 'pending'        // Map 'delayed' to 'pending' for frontend
+      'delayed': 'pending'
     };
     
     // Format the response for easier frontend use
@@ -59,7 +58,6 @@ exports.getAllServices = async (req, res) => {
       notes: service.internal_notes || service.customer_notes || '',
       created_at: service.created_at,
       updated_at: service.updated_at,
-      // Include related data
       plate_number: service.vehicles?.plate_number,
       make: service.vehicles?.make,
       model: service.vehicles?.model,
@@ -81,8 +79,42 @@ exports.getAllServices = async (req, res) => {
     });
   }
 };
-// @route   GET /api/services
-// @desc    Create new service (UPDATED with correct enum values)
+
+// @desc    Get single service
+// @route   GET /api/services/:id
+exports.getService = async (req, res) => {
+  try {
+    const service = await prisma.services.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        vehicles: true,
+        service_types: true,
+        users: true,
+        spare_parts: true
+      }
+    });
+    
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: service
+    });
+  } catch (err) {
+    console.error('Error in getService:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+// @desc    Create new service (CORRECTED VERSION)
 // @route   POST /api/services
 exports.createService = async (req, res) => {
   try {
@@ -197,8 +229,9 @@ exports.createService = async (req, res) => {
     const invoiceNumber = `INV-${year}${month}-${String(serviceCount + 1).padStart(4, '0')}`;
     console.log('Generated invoice number:', invoiceNumber);
     
-    // Map frontend status values to database enum values
-    // Based on your schema: scheduled, in_progress, completed, cancelled, delayed
+    // IMPORTANT: Map frontend status values to database enum values
+    // Based on your error and getAllServices function, the enum values are:
+    // 'scheduled', 'in_progress', 'completed', 'cancelled', 'delayed'
     let serviceStatusEnum = 'scheduled'; // Default value from schema
     
     if (status) {
@@ -219,14 +252,14 @@ exports.createService = async (req, res) => {
     
     console.log('Mapping status:', status, '->', serviceStatusEnum);
     
-    // Create service data
+    // Create service data with CORRECT field name (service_status, not status)
     const serviceData = {
       vehicle_id: parsedVehicleId,
       service_date: parsedDate,
       mileage_at_service: parsedMileage,
       total_cost: parsedTotalCost,
       invoice_number: invoiceNumber,
-      service_status: serviceStatusEnum, // Use the correct enum value
+      service_status: serviceStatusEnum, // Use the correct enum value and field name
       // Optional fields
       ...(parsedServiceTypeId !== null && { service_type_id: parsedServiceTypeId }),
       ...(parsedTechnicianId !== null && { technician_id: parsedTechnicianId }),
@@ -292,187 +325,37 @@ exports.createService = async (req, res) => {
   }
 };
 
-// @desc    Get single service
-// @route   GET /api/services/:id
-exports.getService = async (req, res) => {
-  try {
-    const service = await prisma.services.findUnique({
-      where: { id: parseInt(req.params.id) },
-      include: {
-        vehicles: true,
-        service_types: true,
-        users: true,
-        spare_parts: true
-      }
-    });
-    
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        message: 'Service not found'
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: service
-    });
-  } catch (err) {
-    console.error('Error in getService:', err);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-};
-
-// @desc    Create new service (FIXED VERSION)
-// @route   POST /api/services
-exports.createService = async (req, res) => {
-  try {
-    console.log('=== CREATE SERVICE REQUEST ===');
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-    
-    const {
-      vehicle_id,
-      service_type_id,
-      technician_id,
-      service_date,
-      mileage_at_service,
-      total_cost,
-      notes,
-      status
-    } = req.body;
-    
-    // Validate required fields
-    if (!vehicle_id || !service_date || !mileage_at_service || !total_cost) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields'
-      });
-    }
-    
-    // Parse values
-    const parsedVehicleId = parseInt(vehicle_id);
-    const parsedMileage = parseInt(mileage_at_service);
-    const parsedTotalCost = parseFloat(total_cost);
-    
-    if (isNaN(parsedVehicleId) || isNaN(parsedMileage) || isNaN(parsedTotalCost)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid numeric values'
-      });
-    }
-    
-    // Parse date
-    const parsedDate = new Date(service_date);
-    if (isNaN(parsedDate.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid date format'
-      });
-    }
-    
-    // Handle service_type_id carefully
-    let parsedServiceTypeId = null;
-    if (service_type_id && service_type_id !== '' && service_type_id !== 'null') {
-      parsedServiceTypeId = parseInt(service_type_id);
-      if (isNaN(parsedServiceTypeId)) {
-        parsedServiceTypeId = null;
-      } else {
-        // Check if service type exists
-        const serviceTypeExists = await prisma.service_types.findUnique({
-          where: { id: parsedServiceTypeId }
-        });
-        if (!serviceTypeExists) {
-          console.log(`Service type ID ${parsedServiceTypeId} not found, setting to null`);
-          parsedServiceTypeId = null;
-        }
-      }
-    }
-    
-    // Parse technician_id
-    const parsedTechnicianId = technician_id ? parseInt(technician_id) : null;
-    
-    // Generate invoice number
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const startOfMonth = new Date(year, today.getMonth(), 1);
-    const endOfMonth = new Date(year, today.getMonth() + 1, 0);
-    
-    const serviceCount = await prisma.services.count({
-      where: {
-        service_date: {
-          gte: startOfMonth,
-          lte: endOfMonth
-        }
-      }
-    });
-    
-    const invoiceNumber = `INV-${year}${month}-${String(serviceCount + 1).padStart(4, '0')}`;
-    console.log('Generated invoice number:', invoiceNumber);
-    
-    // Create service with minimal required fields
-    const serviceData = {
-      vehicle_id: parsedVehicleId,
-      service_date: parsedDate,
-      mileage_at_service: parsedMileage,
-      total_cost: parsedTotalCost,
-      invoice_number: invoiceNumber,
-      // Optional fields - only include if they exist in your schema
-      ...(parsedServiceTypeId !== null && { service_type_id: parsedServiceTypeId }),
-      ...(parsedTechnicianId !== null && { technician_id: parsedTechnicianId }),
-      // Use internal_notes if notes field doesn't exist
-      ...(notes && { internal_notes: notes }),
-      // Use service_status if status field doesn't exist
-      ...(status && { service_status: status }),
-      created_at: new Date(),
-      updated_at: new Date()
-    };
-    
-    console.log('Creating service with data:', serviceData);
-    
-    const service = await prisma.services.create({
-      data: serviceData
-    });
-    
-    console.log('✅ Service created successfully. ID:', service.id);
-    
-    res.status(201).json({
-      success: true,
-      data: service
-    });
-    
-  } catch (err) {
-    console.error('❌ Error in createService:', err.message);
-    console.error('Full error:', err);
-    
-    if (err.code === 'P2003') {
-      return res.status(400).json({
-        success: false,
-        message: 'Foreign key constraint failed',
-        error: `The service_type_id (${req.body.service_type_id}) does not exist in service_types table`,
-        hint: 'Use /api/services/debug/types to see available service types',
-        solution: 'Use /api/services/seed-types to create default service types'
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: err.message
-    });
-  }
-};
-
 // @desc    Update service
 // @route   PUT /api/services/:id
 exports.updateService = async (req, res) => {
   try {
+    // Map status if provided
+    const updateData = { ...req.body };
+    
+    if (updateData.status) {
+      // Map frontend status to database enum
+      const statusMap = {
+        'pending': 'scheduled',
+        'scheduled': 'scheduled',
+        'in_progress': 'in_progress',
+        'in-progress': 'in_progress',
+        'completed': 'completed',
+        'cancelled': 'cancelled',
+        'canceled': 'cancelled',
+        'delayed': 'delayed'
+      };
+      
+      const normalizedStatus = updateData.status.toLowerCase().trim();
+      updateData.service_status = statusMap[normalizedStatus] || 'scheduled';
+      delete updateData.status; // Remove the status field
+    }
+    
+    // Add updated_at timestamp
+    updateData.updated_at = new Date();
+    
     const service = await prisma.services.update({
       where: { id: parseInt(req.params.id) },
-      data: req.body
+      data: updateData
     });
     
     res.json({
@@ -717,18 +600,17 @@ exports.seedServiceTypes = async (req, res) => {
     console.log('=== SEEDING SERVICE TYPES ===');
     
     const defaultServiceTypes = [
-      { name: 'Oil Change', description: 'Engine oil and filter change', estimated_duration: 60, base_labor_cost: 50.00, category: 'routine' },
-      { name: 'Brake Service', description: 'Brake pads and rotors replacement', estimated_duration: 120, base_labor_cost: 150.00, category: 'repair' },
-      { name: 'Tire Rotation', description: 'Rotate tires for even wear', estimated_duration: 45, base_labor_cost: 30.00, category: 'routine' },
-      { name: 'Engine Tune-up', description: 'Spark plugs, filters, and system check', estimated_duration: 180, base_labor_cost: 200.00, category: 'maintenance' },
-      { name: 'Transmission Service', description: 'Transmission fluid change', estimated_duration: 90, base_labor_cost: 120.00, category: 'maintenance' },
-      { name: 'Battery Replacement', description: 'Car battery replacement', estimated_duration: 30, base_labor_cost: 40.00, category: 'repair' },
-      { name: 'AC Service', description: 'Air conditioning system service', estimated_duration: 120, base_labor_cost: 150.00, category: 'repair' },
-      { name: 'General Maintenance', description: 'General vehicle maintenance', estimated_duration: 60, base_labor_cost: 75.00, category: 'routine' },
-      { name: 'Suspension Service', description: 'Suspension system repair', estimated_duration: 180, base_labor_cost: 250.00, category: 'repair' },
-      { name: 'Exhaust Repair', description: 'Exhaust system repair', estimated_duration: 120, base_labor_cost: 180.00, category: 'repair' },
-    ];
-    
+  { name: 'Oil Change', description: 'Engine oil and filter change', estimated_duration: 60, base_labor_cost: 50.00, category: 'routine' },
+  { name: 'Brake Service', description: 'Brake pads and rotors replacement', estimated_duration: 120, base_labor_cost: 150.00, category: 'repair' },
+  { name: 'Tire Rotation', description: 'Rotate tires for even wear', estimated_duration: 45, base_labor_cost: 30.00, category: 'routine' },
+  { name: 'Engine Tune-up', description: 'Spark plugs, filters, and system check', estimated_duration: 180, base_labor_cost: 200.00, category: 'maintenance' },
+  { name: 'Transmission Service', description: 'Transmission fluid change', estimated_duration: 90, base_labor_cost: 120.00, category: 'maintenance' },
+  { name: 'Battery Replacement', description: 'Car battery replacement', estimated_duration: 30, base_labor_cost: 40.00, category: 'repair' },
+  { name: 'AC Service', description: 'Air conditioning system service', estimated_duration: 120, base_labor_cost: 150.00, category: 'repair' },
+  { name: 'General Maintenance', description: 'General vehicle maintenance', estimated_duration: 60, base_labor_cost: 75.00, category: 'routine' },
+  { name: 'Suspension Service', description: 'Suspension system repair', estimated_duration: 180, base_labor_cost: 250.00, category: 'repair' },
+  { name: 'Exhaust Repair', description: 'Exhaust system repair', estimated_duration: 120, base_labor_cost: 180.00, category: 'repair' },
+];
     const createdTypes = [];
     const skippedTypes = [];
     
