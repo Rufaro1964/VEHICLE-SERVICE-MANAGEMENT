@@ -52,8 +52,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { format, parseISO } from 'date-fns';
-//import apiService from '../services/api';
 import apiService from '../../services/api';
+import ServiceFormDialog from '../forms/ServiceFormDialog';
 
 const Services = () => {
     const [services, setServices] = useState([]);
@@ -215,24 +215,63 @@ const Services = () => {
         return Array.from(vehiclesMap.values());
     };
 
+    // Helper function to safely format currency
+    const formatCurrency = (value) => {
+        if (value === null || value === undefined || value === '') {
+            return 'K0.00';
+        }
+        const num = parseFloat(value);
+        return isNaN(num) ? 'K0.00' : `K${num.toFixed(2)}`;
+    };
+
     const calculateStats = () => {
         const today = new Date();
         const last30Days = new Date();
         last30Days.setDate(today.getDate() - 30);
 
-        const recentServices = services.filter(service => 
-            new Date(service.service_date) >= last30Days
-        );
+        const recentServices = services.filter(service => {
+            if (!service.service_date) return false;
+            const serviceDate = new Date(service.service_date);
+            return serviceDate >= last30Days && !isNaN(serviceDate.getTime());
+        });
+
+        // Safely calculate totals with validation
+        const totalRevenue = services.reduce((sum, service) => {
+            if (!service || service.total_cost === null || service.total_cost === undefined) {
+                return sum;
+            }
+            const cost = parseFloat(service.total_cost);
+            return sum + (isNaN(cost) ? 0 : cost);
+        }, 0);
+
+        const recentRevenue = recentServices.reduce((sum, service) => {
+            if (!service || service.total_cost === null || service.total_cost === undefined) {
+                return sum;
+            }
+            const cost = parseFloat(service.total_cost);
+            return sum + (isNaN(cost) ? 0 : cost);
+        }, 0);
+
+        const averageCost = services.length > 0 
+            ? totalRevenue / services.length
+            : 0;
 
         return {
             totalServices: services.length,
             recentServices: recentServices.length,
-            totalRevenue: services.reduce((sum, service) => sum + service.total_cost, 0),
-            recentRevenue: recentServices.reduce((sum, service) => sum + service.total_cost, 0),
-            averageCost: services.length > 0 
-                ? services.reduce((sum, service) => sum + service.total_cost, 0) / services.length
-                : 0,
+            totalRevenue: totalRevenue,
+            recentRevenue: recentRevenue,
+            averageCost: averageCost,
         };
+    };
+
+    // Helper to safely format mileage
+    const formatMileage = (mileage) => {
+        if (mileage === null || mileage === undefined || mileage === '') {
+            return 'N/A';
+        }
+        const num = parseFloat(mileage);
+        return isNaN(num) ? 'N/A' : num.toLocaleString() + ' miles';
     };
 
     if (loading) {
@@ -281,10 +320,10 @@ const Services = () => {
                                 Total Revenue
                             </Typography>
                             <Typography variant="h4" color="success.main">
-                                ${stats.totalRevenue.toFixed(2)}
+                                {formatCurrency(stats.totalRevenue)}
                             </Typography>
                             <Typography variant="caption" color="textSecondary">
-                                ${stats.recentRevenue.toFixed(2)} recent
+                                {formatCurrency(stats.recentRevenue)} recent
                             </Typography>
                         </CardContent>
                     </Card>
@@ -296,7 +335,7 @@ const Services = () => {
                                 Average Service Cost
                             </Typography>
                             <Typography variant="h4">
-                                ${stats.averageCost.toFixed(2)}
+                                {formatCurrency(stats.averageCost)}
                             </Typography>
                             <Typography variant="caption" color="textSecondary">
                                 per service
@@ -457,25 +496,25 @@ const Services = () => {
                                         </Typography>
                                     </TableCell>
                                     <TableCell>
-                                        {format(parseISO(service.service_date), 'MMM dd, yyyy')}
+                                        {service.service_date ? format(parseISO(service.service_date), 'MMM dd, yyyy') : 'N/A'}
                                     </TableCell>
                                     <TableCell>
                                         <Box>
                                             <Typography variant="body2">
-                                                {service.plate_number}
+                                                {service.plate_number || 'N/A'}
                                             </Typography>
                                             <Typography variant="caption" color="textSecondary">
                                                 {service.make} {service.model}
                                             </Typography>
                                         </Box>
                                     </TableCell>
-                                    <TableCell>{service.service_type_name}</TableCell>
+                                    <TableCell>{service.service_type_name || 'N/A'}</TableCell>
                                     <TableCell>
-                                        {service.mileage_at_service.toLocaleString()} miles
+                                        {formatMileage(service.mileage_at_service)}
                                     </TableCell>
                                     <TableCell>
                                         <Chip
-                                            label={`$${service.total_cost}`}
+                                            label={formatCurrency(service.total_cost)}
                                             color="success"
                                             size="small"
                                             variant="outlined"
@@ -610,218 +649,6 @@ const Services = () => {
                 <Add />
             </Fab>
         </Container>
-    );
-};
-
-// Service Form Dialog Component
-const ServiceFormDialog = ({ open, onClose, service, onSuccess }) => {
-    const [formData, setFormData] = useState({
-        vehicle_id: '',
-        service_type_id: '',
-        service_date: format(new Date(), 'yyyy-MM-dd'),
-        mileage_at_service: '',
-        total_cost: '',
-        notes: '',
-        status: 'completed',
-    });
-    const [vehicles, setVehicles] = useState([]);
-    const [serviceTypes, setServiceTypes] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const { enqueueSnackbar } = useSnackbar();
-
-    useEffect(() => {
-        if (open) {
-            loadFormData();
-            if (service) {
-                setFormData({
-                    vehicle_id: service.vehicle_id || '',
-                    service_type_id: service.service_type_id || '',
-                    service_date: format(parseISO(service.service_date), 'yyyy-MM-dd'),
-                    mileage_at_service: service.mileage_at_service || '',
-                    total_cost: service.total_cost || '',
-                    notes: service.notes || '',
-                    status: service.status || 'completed',
-                });
-            }
-        }
-    }, [open, service]);
-
-    const loadFormData = async () => {
-        try {
-            // Load vehicles
-            const vehiclesResponse = await apiService.getVehicles();
-            if (vehiclesResponse.success) {
-                setVehicles(vehiclesResponse.data);
-            }
-            
-            // Load service types
-            const typesResponse = await apiService.getServiceTypes();
-            if (typesResponse.success) {
-                setServiceTypes(typesResponse.data);
-            }
-        } catch (error) {
-            enqueueSnackbar('Error loading form data', { variant: 'error' });
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-
-        try {
-            const serviceData = {
-                ...formData,
-                mileage_at_service: parseFloat(formData.mileage_at_service),
-                total_cost: parseFloat(formData.total_cost),
-            };
-
-            let response;
-            if (service) {
-                response = await apiService.updateService(service.id, serviceData);
-            } else {
-                response = await apiService.createService(serviceData);
-            }
-
-            if (response.success) {
-                enqueueSnackbar(
-                    service ? 'Service updated successfully' : 'Service created successfully',
-                    { variant: 'success' }
-                );
-                onSuccess();
-            }
-        } catch (error) {
-            enqueueSnackbar('Error saving service', { variant: 'error' });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-            <DialogTitle>
-                {service ? 'Edit Service' : 'Add New Service'}
-            </DialogTitle>
-            <DialogContent>
-                <Box component="form" onSubmit={handleSubmit} sx={{ pt: 2 }}>
-                    <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                            <FormControl fullWidth required>
-                                <InputLabel>Vehicle</InputLabel>
-                                <Select
-                                    value={formData.vehicle_id}
-                                    onChange={(e) => setFormData({...formData, vehicle_id: e.target.value})}
-                                    label="Vehicle"
-                                >
-                                    <MenuItem value="">Select Vehicle</MenuItem>
-                                    {vehicles.map((vehicle) => (
-                                        <MenuItem key={vehicle.id} value={vehicle.id}>
-                                            {vehicle.plate_number} - {vehicle.make} {vehicle.model}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                            <FormControl fullWidth>
-                                <InputLabel>Service Type</InputLabel>
-                                <Select
-                                    value={formData.service_type_id}
-                                    onChange={(e) => setFormData({...formData, service_type_id: e.target.value})}
-                                    label="Service Type"
-                                >
-                                    <MenuItem value="">Select Type</MenuItem>
-                                    {serviceTypes.map((type) => (
-                                        <MenuItem key={type.id} value={type.id}>
-                                            {type.name}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth
-                                label="Service Date"
-                                type="date"
-                                value={formData.service_date}
-                                onChange={(e) => setFormData({...formData, service_date: e.target.value})}
-                                InputLabelProps={{ shrink: true }}
-                                required
-                            />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                            <FormControl fullWidth>
-                                <InputLabel>Status</InputLabel>
-                                <Select
-                                    value={formData.status}
-                                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                                    label="Status"
-                                >
-                                    <MenuItem value="pending">Pending</MenuItem>
-                                    <MenuItem value="in_progress">In Progress</MenuItem>
-                                    <MenuItem value="completed">Completed</MenuItem>
-                                    <MenuItem value="cancelled">Cancelled</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth
-                                label="Mileage at Service"
-                                type="number"
-                                value={formData.mileage_at_service}
-                                onChange={(e) => setFormData({...formData, mileage_at_service: e.target.value})}
-                                required
-                                InputProps={{
-                                    endAdornment: 'miles',
-                                }}
-                            />
-                        </Grid>
-                        
-                        <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth
-                                label="Total Cost"
-                                type="number"
-                                value={formData.total_cost}
-                                onChange={(e) => setFormData({...formData, total_cost: e.target.value})}
-                                required
-                                InputProps={{
-                                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                                }}
-                            />
-                        </Grid>
-                        
-                        <Grid item xs={12}>
-                            <TextField
-                                fullWidth
-                                label="Notes"
-                                multiline
-                                rows={3}
-                                value={formData.notes}
-                                onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                            />
-                        </Grid>
-                    </Grid>
-                </Box>
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} disabled={loading}>
-                    Cancel
-                </Button>
-                <Button
-                    onClick={handleSubmit}
-                    variant="contained"
-                    disabled={loading}
-                >
-                    {loading ? 'Saving...' : (service ? 'Update Service' : 'Create Service')}
-                </Button>
-            </DialogActions>
-        </Dialog>
     );
 };
 

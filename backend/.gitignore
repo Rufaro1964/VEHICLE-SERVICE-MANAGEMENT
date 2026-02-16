@@ -33,3 +33,5 @@ backup/
 *.pem
 *.crt
 *.key
+
+/generated/prisma

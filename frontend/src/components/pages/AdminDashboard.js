@@ -68,7 +68,7 @@ import {
     Legend,
     ResponsiveContainer,
 } from 'recharts';
-import apiService from '../services/api';
+import apiService from '../../services/api';
 
 const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);

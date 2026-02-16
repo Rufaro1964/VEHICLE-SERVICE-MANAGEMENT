@@ -52,8 +52,6 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import apiService from '../../services/api';
 
-
-
 const ServiceDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -63,6 +61,27 @@ const ServiceDetail = () => {
     const [loading, setLoading] = useState(true);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
+    // Helper function to safely format currency
+    const formatCurrency = (value) => {
+        if (value === null || value === undefined || value === '') return '$0.00';
+        const num = parseFloat(value);
+        return isNaN(num) ? '$0.00' : `$${num.toFixed(2)}`;
+    };
+
+    // Helper function to safely format numbers without currency symbol
+    const formatNumber = (value) => {
+        if (value === null || value === undefined || value === '') return '0.00';
+        const num = parseFloat(value);
+        return isNaN(num) ? '0.00' : num.toFixed(2);
+    };
+
+    // Helper function to safely parse mileage
+    const formatMileage = (value) => {
+        if (value === null || value === undefined || value === '') return '0 miles';
+        const num = parseFloat(value);
+        return isNaN(num) ? '0 miles' : num.toLocaleString() + ' miles';
+    };
+
     useEffect(() => {
         loadServiceData();
     }, [id]);
@@ -71,12 +90,15 @@ const ServiceDetail = () => {
         try {
             setLoading(true);
             const response = await apiService.getService(id);
+            console.log('API Response:', response); // Debug log
+            
             if (response.success) {
                 setService(response.data);
             } else {
                 throw new Error('Service not found');
             }
         } catch (error) {
+            console.error('Error loading service:', error); // Debug log
             enqueueSnackbar('Error loading service details', { variant: 'error' });
             navigate('/services');
         } finally {
@@ -146,6 +168,23 @@ const ServiceDetail = () => {
         );
     };
 
+    // Helper to safely parse spare_parts
+    const getSpareParts = () => {
+        if (!service?.spare_parts) return [];
+        
+        try {
+            if (Array.isArray(service.spare_parts)) {
+                return service.spare_parts;
+            } else if (typeof service.spare_parts === 'string') {
+                return JSON.parse(service.spare_parts);
+            }
+            return [];
+        } catch (err) {
+            console.error('Error parsing spare_parts:', err);
+            return [];
+        }
+    };
+
     if (loading) {
         return (
             <Box sx={{ width: '100%' }}>
@@ -171,7 +210,7 @@ const ServiceDetail = () => {
         );
     }
 
-    const spareParts = service.spare_parts ? JSON.parse(service.spare_parts) : [];
+    const spareParts = getSpareParts();
 
     return (
         <Container maxWidth="lg">
@@ -188,12 +227,12 @@ const ServiceDetail = () => {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Box>
                         <Typography variant="h4" component="h1" gutterBottom>
-                            Service #{service.invoice_number}
+                            Service #{service.invoice_number || `ID: ${id}`}
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             {getStatusChip(service.status)}
                             <Typography variant="body1" color="textSecondary">
-                                • {format(parseISO(service.service_date), 'MMMM dd, yyyy')}
+                                • {service.service_date ? format(parseISO(service.service_date), 'MMMM dd, yyyy') : 'No date'}
                             </Typography>
                         </Box>
                     </Box>
@@ -248,10 +287,12 @@ const ServiceDetail = () => {
                                         </Typography>
                                     </Box>
                                     <Typography variant="body1">
-                                        {service.plate_number} ({service.make} {service.model})
+                                        {service.vehicles?.plate_number || 'N/A'} 
+                                        {service.vehicles?.make || service.vehicles?.model ? 
+                                            ` (${service.vehicles.make || ''} ${service.vehicles.model || ''})` : ''}
                                     </Typography>
                                     <Typography variant="caption" color="textSecondary">
-                                        Chassis: {service.chassis_number}
+                                        Chassis: {service.vehicles?.chassis_number || 'N/A'}
                                     </Typography>
                                 </Grid>
                                 
@@ -263,10 +304,10 @@ const ServiceDetail = () => {
                                         </Typography>
                                     </Box>
                                     <Typography variant="body1">
-                                        {service.service_type_name}
+                                        {service.service_types?.name || 'Not specified'}
                                     </Typography>
                                     <Typography variant="caption" color="textSecondary">
-                                        {service.service_type_desc}
+                                        {service.service_types?.description || ''}
                                     </Typography>
                                 </Grid>
                                 
@@ -278,19 +319,19 @@ const ServiceDetail = () => {
                                         </Typography>
                                     </Box>
                                     <Typography variant="body1">
-                                        {format(parseISO(service.service_date), 'MMMM dd, yyyy')}
+                                        {service.service_date ? format(parseISO(service.service_date), 'MMMM dd, yyyy') : 'N/A'}
                                     </Typography>
                                 </Grid>
                                 
                                 <Grid item xs={12} sm={6}>
-                                    <Box sx={{ display: '-flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                         <Speed fontSize="small" color="action" />
                                         <Typography variant="caption" color="textSecondary">
                                             Mileage at Service
                                         </Typography>
                                     </Box>
                                     <Typography variant="body1">
-                                        {service.mileage_at_service.toLocaleString()} miles
+                                        {formatMileage(service.mileage_at_service)}
                                     </Typography>
                                 </Grid>
                                 
@@ -302,8 +343,13 @@ const ServiceDetail = () => {
                                         </Typography>
                                     </Box>
                                     <Typography variant="body1">
-                                        {service.technician_name || 'Not assigned'}
+                                        {service.users?.username || 'Not assigned'}
                                     </Typography>
+                                    {service.users?.email && (
+                                        <Typography variant="caption" color="textSecondary">
+                                            {service.users.email}
+                                        </Typography>
+                                    )}
                                 </Grid>
                                 
                                 <Grid item xs={12} sm={6}>
@@ -314,7 +360,7 @@ const ServiceDetail = () => {
                                         </Typography>
                                     </Box>
                                     <Typography variant="h5" color="success.main">
-                                        ${service.total_cost.toFixed(2)}
+                                        {formatCurrency(service.total_cost)}
                                     </Typography>
                                 </Grid>
                             </Grid>
@@ -343,13 +389,13 @@ const ServiceDetail = () => {
                                             {spareParts.map((part, index) => (
                                                 <TableRow key={index}>
                                                     <TableCell>{part.part_number || 'N/A'}</TableCell>
-                                                    <TableCell>{part.part_name}</TableCell>
-                                                    <TableCell align="right">{part.quantity}</TableCell>
+                                                    <TableCell>{part.part_name || 'N/A'}</TableCell>
+                                                    <TableCell align="right">{part.quantity || 0}</TableCell>
                                                     <TableCell align="right">
-                                                        ${part.unit_cost?.toFixed(2) || '0.00'}
+                                                        {formatCurrency(part.unit_cost)}
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        <strong>${part.total_cost?.toFixed(2) || '0.00'}</strong>
+                                                        <strong>{formatCurrency(part.total_cost)}</strong>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -361,7 +407,10 @@ const ServiceDetail = () => {
                                                 </TableCell>
                                                 <TableCell align="right">
                                                     <Typography variant="subtitle1">
-                                                        ${spareParts.reduce((sum, part) => sum + (part.total_cost || 0), 0).toFixed(2)}
+                                                        {formatCurrency(spareParts.reduce((sum, part) => {
+                                                            const partCost = parseFloat(part.total_cost) || 0;
+                                                            return sum + partCost;
+                                                        }, 0))}
                                                     </Typography>
                                                 </TableCell>
                                             </TableRow>
@@ -412,7 +461,7 @@ const ServiceDetail = () => {
                                 </Grid>
                                 <Grid item xs={6} sx={{ textAlign: 'right' }}>
                                     <Typography variant="body2">
-                                        {service.invoice_number}
+                                        {service.invoice_number || `SVC-${id}`}
                                     </Typography>
                                 </Grid>
                                 
@@ -423,7 +472,7 @@ const ServiceDetail = () => {
                                 </Grid>
                                 <Grid item xs={6} sx={{ textAlign: 'right' }}>
                                     <Typography variant="body2">
-                                        {format(parseISO(service.service_date), 'MM/dd/yyyy')}
+                                        {service.service_date ? format(parseISO(service.service_date), 'MM/dd/yyyy') : 'N/A'}
                                     </Typography>
                                 </Grid>
                                 
@@ -434,7 +483,7 @@ const ServiceDetail = () => {
                                 </Grid>
                                 <Grid item xs={6} sx={{ textAlign: 'right' }}>
                                     <Typography variant="body2">
-                                        {service.plate_number}
+                                        {service.vehicles?.plate_number || 'N/A'}
                                     </Typography>
                                 </Grid>
                                 
@@ -455,7 +504,7 @@ const ServiceDetail = () => {
                                     Service Description
                                 </Typography>
                                 <Typography variant="body2">
-                                    {service.service_type_name}
+                                    {service.service_types?.name || 'Service'}
                                 </Typography>
                             </Box>
                             
@@ -464,7 +513,7 @@ const ServiceDetail = () => {
                                     Amount Due
                                 </Typography>
                                 <Typography variant="h4" color="success.main" align="right">
-                                    ${service.total_cost.toFixed(2)}
+                                    {formatCurrency(service.total_cost)}
                                 </Typography>
                             </Box>
                             
@@ -487,6 +536,7 @@ const ServiceDetail = () => {
                                     button 
                                     onClick={() => navigate(`/vehicles/${service.vehicle_id}`)}
                                     sx={{ borderRadius: 1 }}
+                                    disabled={!service.vehicle_id}
                                 >
                                     <ListItemIcon>
                                         <DirectionsCar />
@@ -552,7 +602,7 @@ const ServiceDetail = () => {
                                 <Alert severity="info" icon={false}>
                                     <Typography variant="body2">
                                         Next service due at{' '}
-                                        <strong>{service.next_service_due?.toLocaleString() || 'N/A'} miles</strong>
+                                        <strong>{formatMileage(service.next_service_due)}</strong>
                                     </Typography>
                                     {service.next_service_date && (
                                         <Typography variant="caption" display="block" sx={{ mt: 1 }}>
@@ -566,6 +616,7 @@ const ServiceDetail = () => {
                                     variant="outlined"
                                     sx={{ mt: 2 }}
                                     onClick={() => navigate(`/vehicles/${service.vehicle_id}`)}
+                                    disabled={!service.vehicle_id}
                                 >
                                     View Maintenance Schedule
                                 </Button>
@@ -586,13 +637,13 @@ const ServiceDetail = () => {
                         Are you sure you want to delete this service record? This action cannot be undone.
                     </Alert>
                     <Typography variant="body2" color="textSecondary">
-                        Invoice: {service.invoice_number}
+                        Invoice: {service.invoice_number || `ID: ${id}`}
                         <br />
-                        Vehicle: {service.plate_number}
+                        Vehicle: {service.vehicles?.plate_number || 'N/A'}
                         <br />
-                        Date: {format(parseISO(service.service_date), 'MMMM dd, yyyy')}
+                        Date: {service.service_date ? format(parseISO(service.service_date), 'MMMM dd, yyyy') : 'N/A'}
                         <br />
-                        Amount: ${service.total_cost.toFixed(2)}
+                        Amount: {formatCurrency(service.total_cost)}
                     </Typography>
                 </DialogContent>
                 <DialogActions>
