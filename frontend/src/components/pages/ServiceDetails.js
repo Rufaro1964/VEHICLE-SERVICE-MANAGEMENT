@@ -61,6 +61,27 @@ const ServiceDetail = () => {
     const [loading, setLoading] = useState(true);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
+    // Helper function to safely format currency
+    const formatCurrency = (value) => {
+        if (value === null || value === undefined || value === '') return '$0.00';
+        const num = parseFloat(value);
+        return isNaN(num) ? '$0.00' : `$${num.toFixed(2)}`;
+    };
+
+    // Helper function to safely format numbers without currency symbol
+    const formatNumber = (value) => {
+        if (value === null || value === undefined || value === '') return '0.00';
+        const num = parseFloat(value);
+        return isNaN(num) ? '0.00' : num.toFixed(2);
+    };
+
+    // Helper function to safely parse mileage
+    const formatMileage = (value) => {
+        if (value === null || value === undefined || value === '') return '0 miles';
+        const num = parseFloat(value);
+        return isNaN(num) ? '0 miles' : num.toLocaleString() + ' miles';
+    };
+
     useEffect(() => {
         loadServiceData();
     }, [id]);
@@ -310,7 +331,7 @@ const ServiceDetail = () => {
                                         </Typography>
                                     </Box>
                                     <Typography variant="body1">
-                                        {service.mileage_at_service ? service.mileage_at_service.toLocaleString() + ' miles' : 'N/A'}
+                                        {formatMileage(service.mileage_at_service)}
                                     </Typography>
                                 </Grid>
                                 
@@ -339,7 +360,7 @@ const ServiceDetail = () => {
                                         </Typography>
                                     </Box>
                                     <Typography variant="h5" color="success.main">
-                                        ${service.total_cost ? service.total_cost.toFixed(2) : '0.00'}
+                                        {formatCurrency(service.total_cost)}
                                     </Typography>
                                 </Grid>
                             </Grid>
@@ -371,10 +392,10 @@ const ServiceDetail = () => {
                                                     <TableCell>{part.part_name || 'N/A'}</TableCell>
                                                     <TableCell align="right">{part.quantity || 0}</TableCell>
                                                     <TableCell align="right">
-                                                        ${part.unit_cost ? part.unit_cost.toFixed(2) : '0.00'}
+                                                        {formatCurrency(part.unit_cost)}
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        <strong>${part.total_cost ? part.total_cost.toFixed(2) : '0.00'}</strong>
+                                                        <strong>{formatCurrency(part.total_cost)}</strong>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -386,7 +407,10 @@ const ServiceDetail = () => {
                                                 </TableCell>
                                                 <TableCell align="right">
                                                     <Typography variant="subtitle1">
-                                                        ${spareParts.reduce((sum, part) => sum + (part.total_cost || 0), 0).toFixed(2)}
+                                                        {formatCurrency(spareParts.reduce((sum, part) => {
+                                                            const partCost = parseFloat(part.total_cost) || 0;
+                                                            return sum + partCost;
+                                                        }, 0))}
                                                     </Typography>
                                                 </TableCell>
                                             </TableRow>
@@ -489,7 +513,7 @@ const ServiceDetail = () => {
                                     Amount Due
                                 </Typography>
                                 <Typography variant="h4" color="success.main" align="right">
-                                    ${service.total_cost ? service.total_cost.toFixed(2) : '0.00'}
+                                    {formatCurrency(service.total_cost)}
                                 </Typography>
                             </Box>
                             
@@ -578,7 +602,7 @@ const ServiceDetail = () => {
                                 <Alert severity="info" icon={false}>
                                     <Typography variant="body2">
                                         Next service due at{' '}
-                                        <strong>{service.next_service_due?.toLocaleString() || 'N/A'} miles</strong>
+                                        <strong>{formatMileage(service.next_service_due)}</strong>
                                     </Typography>
                                     {service.next_service_date && (
                                         <Typography variant="caption" display="block" sx={{ mt: 1 }}>
@@ -619,7 +643,7 @@ const ServiceDetail = () => {
                         <br />
                         Date: {service.service_date ? format(parseISO(service.service_date), 'MMMM dd, yyyy') : 'N/A'}
                         <br />
-                        Amount: ${service.total_cost ? service.total_cost.toFixed(2) : '0.00'}
+                        Amount: {formatCurrency(service.total_cost)}
                     </Typography>
                 </DialogContent>
                 <DialogActions>
